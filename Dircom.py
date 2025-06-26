@@ -43,7 +43,7 @@ def app():
             # Definieer de condities en de corresponderende keuzes
             conditions = [
                 (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'Laden'),
-                (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'Levering'), # 'levering' -> 'Levering' voor consistentie
+                (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'levering'), # 'levering' -> 'Levering' voor consistentie
                 (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'Transport'),
                 (df['Verzending-ID'] < 2510000000) & (df['Type'] == 'Laden'),
                 (df['Verzending-ID'] > 2510999999) & (df['Type'] == 'Laden'),
