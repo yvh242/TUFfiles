@@ -82,7 +82,7 @@ def app():
                 # Toon de eerste tabel
                 st.dataframe(result_df, hide_index=True)
 
-            ---
+            
             # Tweede tabel: Files met 'Prest. Eigen Bedrijf' = 0
 
             st.subheader("Files met 'Prest. Eigen Bedrijf' = 0")
