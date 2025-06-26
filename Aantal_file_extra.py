@@ -9,7 +9,7 @@ def app():
     st.write("""
     Upload uw Excel-bestand(en) om een overzicht te krijgen van het aantal files en de totale omzet
     per klant, per maand. Files met 'Dossier Fin. Status' = 20 worden genegeerd in beide overzichten.
-    De eerste tabel toont ook het percentage van het maximale aantal files per maand voor elke klant, en kan gefilterd worden op periode.
+    De eerste tabel toont ook het percentage van het maximale aantal files per maand voor elke klant, en kan gefilterd worden op periode en minimaal aantal bestanden per klant.
     Daarnaast wordt een aparte tabel getoond met files waar 'Prest. Eigen Bedrijf' = 0, inclusief het dossiernummer,
     met de mogelijkheid om op periode te filteren.
     """)
@@ -107,19 +107,31 @@ def app():
         pivot_omzet = df_processed.pivot_table(index='Klantnaam', columns='JaarMaand', values='Prest. Eigen Bedrijf', aggfunc='sum', fill_value=0)
 
         # Bereken het maximum aantal files per klant over alle maanden in de GEFILTERDE data (voor consistentie)
-        # Gebruik hiervoor pivot_aantal omdat die al rekening houdt met de status 20 filter
         max_files_per_klant = pivot_aantal.max(axis=1)
 
+        # --- Nieuwe filter: Minimaal maximum aantal files per klant ---
+        # Bepaal min/max voor de slider
+        min_overall_max_files = max_files_per_klant.min() if not max_files_per_klant.empty else 0
+        max_overall_max_files = max_files_per_klant.max() if not max_files_per_klant.empty else 0
+
+        min_max_files_filter = st.sidebar.slider(
+            "Minimaal Max Files per Klant (Tabel 1)",
+            min_value=int(min_overall_max_files),
+            max_value=int(max_overall_max_files) if int(max_overall_max_files) > int(min_overall_max_files) else int(min_overall_max_files) + 1, # Zorg dat max > min
+            value=int(min_overall_max_files) # Standaard op het laagste maximum
+        )
+
+        # Filter de klanten op basis van de geselecteerde minimale maximum files
+        filtered_klantnamen = max_files_per_klant[max_files_per_klant >= min_max_files_filter].index.tolist()
 
         # Bereid de kolommen voor het uiteindelijke DataFrame voor
         # We tonen alleen de geselecteerde maanden
         final_columns_order_t1 = ['Klantnaam']
         
-        # Check of er gefilterde jaarmaanden zijn
-        if not filtered_jaarmaanden_t1:
-            st.info("Selecteer minimaal één maand in de sidebar voor het hoofdrapport.")
-            # Toon een lege dataframe of stop hier de weergave van de eerste tabel
-            st.dataframe(pd.DataFrame(columns=['Klant']))
+        # Check of er gefilterde jaarmaanden zijn EN of er gefilterde klanten zijn
+        if not filtered_jaarmaanden_t1 or not filtered_klantnamen:
+            st.info("Selecteer minimaal één maand en/of pas het filter voor 'Minimaal Max Files per Klant' aan voor het hoofdrapport.")
+            st.dataframe(pd.DataFrame(columns=['Klant'])) # Toon een lege dataframe
         else:
             for jm in filtered_jaarmaanden_t1:
                 final_columns_order_t1.append(f"{jm.strftime('%Y-%m')} A")
@@ -129,8 +141,8 @@ def app():
             # Maak een leeg DataFrame met de juiste kolommen
             result_df = pd.DataFrame(columns=final_columns_order_t1)
 
-            # Vul het resultaat DataFrame
-            for klantnaam in df_processed['Klantnaam'].unique():
+            # Vul het resultaat DataFrame, maar alleen voor de gefilterde klanten
+            for klantnaam in filtered_klantnamen: # Loop nu over de gefilterde klantnamen
                 row_data = {'Klantnaam': klantnaam}
                 max_files = max_files_per_klant.get(klantnaam, 0) # Haal de max files voor deze klant op
                 
@@ -165,7 +177,6 @@ def app():
             st.sidebar.subheader("Filter voor Files met 0 Omzet")
             
             # Bepaal de minimale en maximale datum in de data voor de datumselector
-            # Voorkom errors als df_zero_omzet leeg is (wat kan gebeuren na filtering)
             min_date_t2 = df_zero_omzet['Laaddatum'].min().date() if not df_zero_omzet.empty else date.today()
             max_date_t2 = df_zero_omzet['Laaddatum'].max().date() if not df_zero_omzet.empty else date.today()
 
