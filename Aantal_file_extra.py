@@ -8,7 +8,7 @@ def app():
 
     st.write("""
     Upload uw Excel-bestand(en) om een overzicht te krijgen van het aantal files en de totale omzet
-    per klant, per maand. Files met 'Dossier Fin. Status' = 20 worden genegeerd in alle overzichten.
+    per klant, per maand. **Files met 'Dossier Fin. Status' = 20 worden genegeerd in alle overzichten.**
     De eerste tabel toont ook het percentage van het maximale aantal files per maand voor elke klant, en kan gefilterd worden op periode en minimaal aantal bestanden per klant.
     Daarnaast wordt een aparte tabel getoond met files waar 'Prest. Eigen Bedrijf' = 0, inclusief het dossiernummer,
     met de mogelijkheid om op periode te filteren.
@@ -212,8 +212,7 @@ def app():
 
                 st.dataframe(df_zero_omzet_filtered_by_date[display_columns_zero_omzet], hide_index=True)
 
-        ---
-        ## Derde tabel: Totaal aantal files per maand (Exclusief Status 20)
+        st.subheader("Totaal aantal files per maand (Exclusief Status 20)")
 
         # Bereken het totaal aantal files per JaarMaand (op basis van df_processed)
         total_files_per_month = df_processed['JaarMaand'].value_counts().sort_index()
