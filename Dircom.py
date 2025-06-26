@@ -1,16 +1,16 @@
 import streamlit as st
 import pandas as pd
-import numpy as np # Importeer numpy voor np.select
+import numpy as np
 import io
 
 def app():
-    st.title("Verzenddata Analyse")
+    st.title("Verzenddata Analyse: Enkel Aantallen")
 
     st.write("""
     Upload uw Excel-bestand om uw verzenddata te analyseren.
-    De app bundelt data per unieke 'Verzending-ID' en telt de numerieke kolommen 'm³' en 'LM' samen.
+    De app bundelt data per unieke 'Verzending-ID'.
     Er wordt een nieuwe 'Dienst_Categorie' kolom aangemaakt op basis van 'Verzending-ID' en 'Type'.
-    Vervolgens worden de totalen getoond voor alle zendingen en per 'Dienst_Categorie', **zonder de weergave van het totale gewicht**.
+    Vervolgens worden de **totalen van unieke zendingen** getoond voor alle zendingen en per 'Dienst_Categorie'.
     """)
 
     uploaded_file = st.file_uploader("Kies een Excel-bestand", type=["xlsx", "xls"])
@@ -21,22 +21,35 @@ def app():
             df = pd.read_excel(uploaded_file)
 
             # --- Controleer op vereiste kolommen ---
-            # 'Kg' is nu optioneel als je het niet wilt tonen, maar het kan nog wel in de bron staan.
-            # Voor de categorisatie en resterende berekeningen zijn deze nog steeds nodig.
-            required_columns_for_processing = ['Verzending-ID', 'Kg', 'm³', 'LM', 'Type']
-            missing_columns = [col for col in required_columns_for_processing if col not in df.columns]
+            # 'Kg', 'm³', 'LM' zijn nu niet meer strikt nodig voor de output,
+            # maar 'Verzending-ID' en 'Type' wel voor de categorisatie en telling.
+            required_columns_for_processing = ['Verzending-ID', 'Type']
+            
+            # Voeg Kg, m³, LM toe als ze bestaan, zodat pd.to_numeric geen fout geeft als ze ontbreken
+            # en de aggregatie correct verloopt als ze wel aanwezig zijn maar niet getoond.
+            # Echter, als ze niet nodig zijn voor *verwerking* behalve voor het aanmaken van df_grouped,
+            # en je ze niet aggregeert, hoeven ze hier niet perse als 'required_columns'.
+            # Voor de zekerheid laten we ze hier nog staan als je ze onverhoopt toch zou gebruiken elders.
+            # Maar voor de huidige vraag: enkel 'Verzending-ID' en 'Type' zijn kritisch.
+            
+            # Echter, als je 'Kg', 'm³', 'LM' volledig negeert, dan moet je opletten dat de bron geen fouten geeft.
+            # We gaan er vanuit dat ze wel in het bestand staan, maar we ze gewoon niet aggregeren.
+            # Als ze niet bestaan, dan zou df['Kg'] bijvoorbeeld een KeyError geven.
+            # We passen de required_columns aan naar wat we *echt* nodig hebben voor dit rapport.
+            required_columns_for_this_report = ['Verzending-ID', 'Type'] 
+            
+            # Controleer of 'Kg', 'm³', 'LM' bestaan als je ze toch nog zou willen verwerken als numeriek
+            # ook al worden ze niet getoond. Voor dit rapport zijn ze niet strikt noodzakelijk meer.
+            # We focussen enkel op de kolommen die we echt nodig hebben voor de telling en categorisatie.
+            
+            missing_columns = [col for col in required_columns_for_this_report if col not in df.columns]
 
             if missing_columns:
-                st.error(f"Het Excel-bestand mist de volgende vereiste kolommen: {', '.join(missing_columns)}. Gelieve een bestand te uploaden met alle benodigde kolommen.")
+                st.error(f"Het Excel-bestand mist de volgende vereiste kolommen voor dit rapport: {', '.join(missing_columns)}. Gelieve een bestand te uploaden met alle benodigde kolommen.")
                 return
 
             # --- Data Voorbereiding ---
-            # Zorg ervoor dat numerieke kolommen de juiste datatype hebben, forceer naar numeric
-            # 'Kg' wordt nog steeds omgezet, zelfs als we het niet tonen, voor correcte aggregatie indien nodig.
-            for col in ['Kg', 'm³', 'LM']:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-
-            # Zorg ervoor dat 'Verzending-ID' numeriek is, nodig voor vergelijkingen
+            # 'Verzending-ID' moet numeriek zijn voor de categorisatie
             df['Verzending-ID'] = pd.to_numeric(df['Verzending-ID'], errors='coerce')
             
             # --- Aanmaken van de nieuwe Dienst_Categorie kolom met np.select ---
@@ -57,51 +70,36 @@ def app():
             st.success("Bestand succesvol ingelezen en verwerkt!")
 
             # --- Dataverwerking: Bundel op 'Verzending-ID' en bewaar de nieuwe 'Dienst_Categorie' ---
-            df_grouped = df.groupby(['Verzending-ID', 'Dienst_Categorie']).agg(
-                m3=('m³', 'sum'),
-                LM=('LM', 'sum')
-                # 'Kg' is hier weggelaten als aggregeerde kolom in df_grouped
-            ).reset_index()
+            # We aggregeren nu alleen op 'size' om het aantal unieke Verzending-ID's te tellen per combinatie
+            # van Verzending-ID en Dienst_Categorie. De andere numerieke kolommen worden niet meegenomen.
+            df_grouped = df.groupby(['Verzending-ID', 'Dienst_Categorie']).size().reset_index(name='Aantal items per Verzending-ID')
+            # De kolom 'Aantal items per Verzending-ID' is hier niet direct relevant voor de outputs,
+            # maar het reset_index() zorgt ervoor dat we df_grouped weer kunnen gebruiken.
+            # Het belangrijkste is dat df_grouped nu een lijst van unieke Verzending-ID's met hun Dienst_Categorie is.
 
-            # --- Totaaloverzicht alle zendingen (gebaseerd op unieke Verzending-ID's na bundeling) ---
-            st.subheader("1. Totaaloverzicht van alle zendingen")
+            # --- Totaaloverzicht alle zendingen (enkel aantal) ---
+            st.subheader("1. Totaal Aantal Unieke Zendingen (Algemeen)")
 
-            total_zendingen = len(df_grouped)
-            # total_kg is verwijderd
-            total_lm = df_grouped['LM'].sum()
-            total_m3 = df_grouped['m3'].sum() # Nieuw: Totaal m3
-
-            col1, col2, col3 = st.columns(3) # Aangepast naar 3 kolommen voor Zendingen, LM, m3
-            with col1:
-                st.metric(label="Totaal Aantal Unieke Zendingen", value=f"{total_zendingen:,.0f}")
-            with col2:
-                st.metric(label="Totale Laadmeter (LM)", value=f"{total_lm:,.2f} LM")
-            with col3: # Nieuwe kolom
-                st.metric(label="Totaal Volume (m³)", value=f"{total_m3:,.2f} m³")
-
+            total_zendingen = len(df_grouped) # Telt het aantal unieke Verzending-ID's
+            
+            st.metric(label="Totaal Aantal Unieke Zendingen", value=f"{total_zendingen:,.0f}")
 
             st.write("---") # Visuele scheiding
 
-            # --- Totaaloverzicht per Dienst_Categorie ---
-            st.subheader("2. Totaaloverzicht per Dienst Categorie")
+            # --- Totaaloverzicht per Dienst_Categorie (enkel aantal) ---
+            st.subheader("2. Totaal Aantal Unieke Zendingen per Dienst Categorie")
 
+            # Groepeer nu op de NIEUWE 'Dienst_Categorie' kolom en tel het aantal unieke Verzending-ID's
             df_summary_by_category = df_grouped.groupby('Dienst_Categorie').agg(
-                Aantal_Zendingen=('Verzending-ID', 'size'),
-                # Totaal_Kg is verwijderd
-                Totaal_m3=('m3', 'sum'), # Nieuw: Totaal m3 per categorie
-                Totaal_LM=('LM', 'sum')
+                Aantal_Unieke_Zendingen=('Verzending-ID', 'size')
             ).reset_index()
 
             # Hernoem kolommen voor duidelijkheid
-            df_summary_by_category.columns = ['Dienst Categorie', 'Aantal Zendingen', 'Totaal m³', 'Totaal LM'] # Aangepaste kolomnamen
+            df_summary_by_category.columns = ['Dienst Categorie', 'Aantal Unieke Zendingen']
 
             # Formatteer de numerieke kolommen voor weergave
-            # df_summary_by_category['Totaal Kg'] is verwijderd
-            df_summary_by_category['Totaal m³'] = df_summary_by_category['Totaal m³'].map(lambda x: f"{x:,.2f} m³") # Formattering voor m3
-            df_summary_by_category['Totaal LM'] = df_summary_by_category['Totaal LM'].map(lambda x: f"{x:,.2f} LM")
-            df_summary_by_category['Aantal Zendingen'] = df_summary_by_category['Aantal Zendingen'].map(lambda x: f"{x:,.0f}")
+            df_summary_by_category['Aantal Unieke Zendingen'] = df_summary_by_category['Aantal Unieke Zendingen'].map(lambda x: f"{x:,.0f}")
             
-
             st.dataframe(df_summary_by_category, hide_index=True)
 
 
