@@ -8,10 +8,11 @@ def app():
 
     st.write("""
     Upload uw Excel-bestand(en) om een overzicht te krijgen van het aantal files en de totale omzet
-    per klant, per maand. Files met 'Dossier Fin. Status' = 20 worden genegeerd in beide overzichten.
+    per klant, per maand. Files met 'Dossier Fin. Status' = 20 worden genegeerd in alle overzichten.
     De eerste tabel toont ook het percentage van het maximale aantal files per maand voor elke klant, en kan gefilterd worden op periode en minimaal aantal bestanden per klant.
     Daarnaast wordt een aparte tabel getoond met files waar 'Prest. Eigen Bedrijf' = 0, inclusief het dossiernummer,
     met de mogelijkheid om op periode te filteren.
+    Tot slot presenteert een derde tabel het totale aantal files per maand.
     """)
 
     # --- Upload meerdere bestanden ---
@@ -56,7 +57,7 @@ def app():
         # Zorg ervoor dat 'Laaddatum' een datetime object is voor de gehele df_processed
         df_processed['Laaddatum'] = pd.to_datetime(df_processed['Laaddatum'])
 
-        # Extraheer jaar en maand voor de eerste tabel
+        # Extraheer jaar en maand voor de tabellen
         df_processed['JaarMaand'] = df_processed['Laaddatum'].dt.to_period('M')
 
         # --- Filtering voor Tabel 1 in de sidebar ---
@@ -73,14 +74,14 @@ def app():
         }
         
         # Gebruik selectbox of multiselect voor jaar en maand
-        selected_year_t1 = st.sidebar.selectbox("Selecteer Jaar", all_years, index=len(all_years)-1 if all_years else 0)
+        selected_year_t1 = st.sidebar.selectbox("Selecteer Jaar (Tabel 1)", all_years, index=len(all_years)-1 if all_years else 0)
         
         # Filter de maanden die beschikbaar zijn voor het geselecteerde jaar
         available_months_in_selected_year = sorted(df_processed[df_processed['Laaddatum'].dt.year == selected_year_t1]['Laaddatum'].dt.month.unique())
         selected_month_names = [month_names[m] for m in available_months_in_selected_year] # Standaard alle maanden in dat jaar
 
         selected_months_t1_str = st.sidebar.multiselect(
-            "Selecteer Maand(en)",
+            "Selecteer Maand(en) (Tabel 1)",
             options=selected_month_names,
             default=selected_month_names if selected_month_names else [] # Selecteer standaard alle maanden van het jaar
         )
@@ -109,15 +110,19 @@ def app():
         # Bereken het maximum aantal files per klant over alle maanden in de GEFILTERDE data (voor consistentie)
         max_files_per_klant = pivot_aantal.max(axis=1)
 
-        # --- Nieuwe filter: Minimaal maximum aantal files per klant ---
+        # --- Filter: Minimaal maximum aantal files per klant ---
         # Bepaal min/max voor de slider
         min_overall_max_files = max_files_per_klant.min() if not max_files_per_klant.empty else 0
         max_overall_max_files = max_files_per_klant.max() if not max_files_per_klant.empty else 0
 
+        # Zorg ervoor dat max_overall_max_files minstens 1 is als min_overall_max_files 0 is, om slider issues te voorkomen
+        if int(max_overall_max_files) <= int(min_overall_max_files):
+            max_overall_max_files = int(min_overall_max_files) + 1
+
         min_max_files_filter = st.sidebar.slider(
             "Minimaal Max Files per Klant (Tabel 1)",
             min_value=int(min_overall_max_files),
-            max_value=int(max_overall_max_files) if int(max_overall_max_files) > int(min_overall_max_files) else int(min_overall_max_files) + 1, # Zorg dat max > min
+            max_value=int(max_overall_max_files),
             value=int(min_overall_max_files) # Standaard op het laagste maximum
         )
 
@@ -206,6 +211,25 @@ def app():
                     display_columns_zero_omzet.insert(0, 'Dossiernr') # Voeg 'Dossiernr' vooraan toe
 
                 st.dataframe(df_zero_omzet_filtered_by_date[display_columns_zero_omzet], hide_index=True)
+
+        ---
+        ## Derde tabel: Totaal aantal files per maand (Exclusief Status 20)
+
+        # Bereken het totaal aantal files per JaarMaand (op basis van df_processed)
+        total_files_per_month = df_processed['JaarMaand'].value_counts().sort_index()
+
+        if total_files_per_month.empty:
+            st.info("Geen totale files per maand om te tonen na filtering op status 20.")
+        else:
+            # Converteer de Series naar een DataFrame voor weergave
+            df_total_files = total_files_per_month.to_frame(name='Aantal Files')
+            df_total_files.index.name = 'Maand'
+            
+            # Formatteer de index (Maand) voor betere leesbaarheid
+            df_total_files.index = df_total_files.index.strftime('%Y-%m')
+
+            st.dataframe(df_total_files) # Toon de derde tabel
+
 
     except Exception as e:
         st.error(f"Er is een fout opgetreden bij het verwerken van het bestand: {e}")
