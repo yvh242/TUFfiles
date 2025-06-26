@@ -193,8 +193,8 @@ def app():
 
             st.dataframe(df_zero_omzet_filtered_by_date[display_columns_zero_omzet], hide_index=True)
 
-        except Exception as e:
-            st.error(f"Er is een fout opgetreden bij het verwerken van het bestand: {e}")
+    except Exception as e:
+        st.error(f"Er is een fout opgetreden bij het verwerken van het bestand: {e}")
 
 if __name__ == '__main__':
     app()
