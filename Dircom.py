@@ -4,13 +4,13 @@ import numpy as np
 import io
 
 def app():
-    st.title("Verzenddata Analyse: Enkel Aantallen")
+    st.title("Verzenddata Analyse: Aantallen en Laadmeters")
 
     st.write("""
     Upload uw Excel-bestand om uw verzenddata te analyseren.
     De app bundelt data per unieke 'Verzending-ID'.
     Er wordt een nieuwe 'Dienst_Categorie' kolom aangemaakt op basis van 'Verzending-ID' en 'Type'.
-    Vervolgens worden de **totalen van unieke zendingen** getoond voor alle zendingen en per 'Dienst_Categorie'.
+    Vervolgens worden de **totalen van unieke zendingen** en **totale Laadmeters (LM)** getoond voor alle zendingen en per 'Dienst_Categorie'.
     """)
 
     uploaded_file = st.file_uploader("Kies een Excel-bestand", type=["xlsx", "xls"])
@@ -21,26 +21,9 @@ def app():
             df = pd.read_excel(uploaded_file)
 
             # --- Controleer op vereiste kolommen ---
-            # 'Kg', 'm³', 'LM' zijn nu niet meer strikt nodig voor de output,
-            # maar 'Verzending-ID' en 'Type' wel voor de categorisatie en telling.
-            required_columns_for_processing = ['Verzending-ID', 'Type']
-            
-            # Voeg Kg, m³, LM toe als ze bestaan, zodat pd.to_numeric geen fout geeft als ze ontbreken
-            # en de aggregatie correct verloopt als ze wel aanwezig zijn maar niet getoond.
-            # Echter, als ze niet nodig zijn voor *verwerking* behalve voor het aanmaken van df_grouped,
-            # en je ze niet aggregeert, hoeven ze hier niet perse als 'required_columns'.
-            # Voor de zekerheid laten we ze hier nog staan als je ze onverhoopt toch zou gebruiken elders.
-            # Maar voor de huidige vraag: enkel 'Verzending-ID' en 'Type' zijn kritisch.
-            
-            # Echter, als je 'Kg', 'm³', 'LM' volledig negeert, dan moet je opletten dat de bron geen fouten geeft.
-            # We gaan er vanuit dat ze wel in het bestand staan, maar we ze gewoon niet aggregeren.
-            # Als ze niet bestaan, dan zou df['Kg'] bijvoorbeeld een KeyError geven.
-            # We passen de required_columns aan naar wat we *echt* nodig hebben voor dit rapport.
-            required_columns_for_this_report = ['Verzending-ID', 'Type'] 
-            
-            # Controleer of 'Kg', 'm³', 'LM' bestaan als je ze toch nog zou willen verwerken als numeriek
-            # ook al worden ze niet getoond. Voor dit rapport zijn ze niet strikt noodzakelijk meer.
-            # We focussen enkel op de kolommen die we echt nodig hebben voor de telling en categorisatie.
+            # 'Verzending-ID', 'LM', en 'Type' zijn de minimaal vereiste kolommen voor dit rapport.
+            # 'Kg' en 'm³' zijn niet strikt nodig voor de output, maar je kunt ze laten staan in je Excel.
+            required_columns_for_this_report = ['Verzending-ID', 'LM', 'Type'] 
             
             missing_columns = [col for col in required_columns_for_this_report if col not in df.columns]
 
@@ -49,8 +32,9 @@ def app():
                 return
 
             # --- Data Voorbereiding ---
-            # 'Verzending-ID' moet numeriek zijn voor de categorisatie
+            # Zorg ervoor dat 'Verzending-ID' en 'LM' numeriek zijn
             df['Verzending-ID'] = pd.to_numeric(df['Verzending-ID'], errors='coerce')
+            df['LM'] = pd.to_numeric(df['LM'], errors='coerce').fillna(0) # Vul NaN met 0 voor optelling
             
             # --- Aanmaken van de nieuwe Dienst_Categorie kolom met np.select ---
             conditions = [
@@ -69,36 +53,40 @@ def app():
 
             st.success("Bestand succesvol ingelezen en verwerkt!")
 
-            # --- Dataverwerking: Bundel op 'Verzending-ID' en bewaar de nieuwe 'Dienst_Categorie' ---
-            # We aggregeren nu alleen op 'size' om het aantal unieke Verzending-ID's te tellen per combinatie
-            # van Verzending-ID en Dienst_Categorie. De andere numerieke kolommen worden niet meegenomen.
-            df_grouped = df.groupby(['Verzending-ID', 'Dienst_Categorie']).size().reset_index(name='Aantal items per Verzending-ID')
-            # De kolom 'Aantal items per Verzending-ID' is hier niet direct relevant voor de outputs,
-            # maar het reset_index() zorgt ervoor dat we df_grouped weer kunnen gebruiken.
-            # Het belangrijkste is dat df_grouped nu een lijst van unieke Verzending-ID's met hun Dienst_Categorie is.
+            # --- Dataverwerking: Bundel op 'Verzending-ID' en bereken de som van LM ---
+            df_grouped = df.groupby(['Verzending-ID', 'Dienst_Categorie']).agg(
+                LM=('LM', 'sum') # Aggregeer nu wel LM
+            ).reset_index()
 
-            # --- Totaaloverzicht alle zendingen (enkel aantal) ---
-            st.subheader("1. Totaal Aantal Unieke Zendingen (Algemeen)")
+            # --- Totaaloverzicht alle zendingen (Aantallen en LM) ---
+            st.subheader("1. Totaal Aantal Unieke Zendingen en Laadmeters (Algemeen)")
 
             total_zendingen = len(df_grouped) # Telt het aantal unieke Verzending-ID's
+            total_lm = df_grouped['LM'].sum() # Totaal LM van alle gebundelde zendingen
             
-            st.metric(label="Totaal Aantal Unieke Zendingen", value=f"{total_zendingen:,.0f}")
+            col1, col2 = st.columns(2) # Twee kolommen voor aantallen en LM
+            with col1:
+                st.metric(label="Totaal Aantal Unieke Zendingen", value=f"{total_zendingen:,.0f}")
+            with col2:
+                st.metric(label="Totale Laadmeter (LM)", value=f"{total_lm:,.2f} LM")
 
             st.write("---") # Visuele scheiding
 
-            # --- Totaaloverzicht per Dienst_Categorie (enkel aantal) ---
-            st.subheader("2. Totaal Aantal Unieke Zendingen per Dienst Categorie")
+            # --- Totaaloverzicht per Dienst_Categorie (Aantallen en LM) ---
+            st.subheader("2. Totaal Aantal Unieke Zendingen en Laadmeters per Dienst Categorie")
 
-            # Groepeer nu op de NIEUWE 'Dienst_Categorie' kolom en tel het aantal unieke Verzending-ID's
+            # Groepeer nu op de NIEUWE 'Dienst_Categorie' kolom en tel het aantal unieke Verzending-ID's + som LM
             df_summary_by_category = df_grouped.groupby('Dienst_Categorie').agg(
-                Aantal_Unieke_Zendingen=('Verzending-ID', 'size')
+                Aantal_Unieke_Zendingen=('Verzending-ID', 'size'), # Telt het aantal unieke Verzending-ID's per categorie
+                Totaal_LM=('LM', 'sum') # Telt de som van LM per categorie
             ).reset_index()
 
             # Hernoem kolommen voor duidelijkheid
-            df_summary_by_category.columns = ['Dienst Categorie', 'Aantal Unieke Zendingen']
+            df_summary_by_category.columns = ['Dienst Categorie', 'Aantal Unieke Zendingen', 'Totaal LM']
 
             # Formatteer de numerieke kolommen voor weergave
             df_summary_by_category['Aantal Unieke Zendingen'] = df_summary_by_category['Aantal Unieke Zendingen'].map(lambda x: f"{x:,.0f}")
+            df_summary_by_category['Totaal LM'] = df_summary_by_category['Totaal LM'].map(lambda x: f"{x:,.2f} LM")
             
             st.dataframe(df_summary_by_category, hide_index=True)
 
