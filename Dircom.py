@@ -38,7 +38,7 @@ def app():
             # --- Aanmaken van de nieuwe Dienst_Categorie kolom met np.select ---
             conditions = [
                 (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'Laden'),
-                (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'Levering'),
+                (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'levering'), # Aangepast: 'Levering' -> 'levering'
                 (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'Transport'),
                 (df['Verzending-ID'] < 2510000000) & (df['Type'] == 'Laden'),
                 (df['Verzending-ID'] > 2510999999) & (df['Type'] == 'Laden'),
@@ -58,7 +58,7 @@ def app():
             ).reset_index()
 
             # --- Totaaloverzicht alle zendingen (Aantallen en LM) ---
-            st.subheader("1. Totaal Aantal Unieke Zendingen en Laadmeters (Algemeen)")
+            st.subheader("1. Totaal") # Aangepast: 'Totaal Aantal Unieke Zendingen en Laadmeters (Algemeen)' -> 'Totaal'
 
             total_zendingen = len(df_grouped) # Telt het aantal unieke Verzending-ID's
             total_lm = df_grouped['LM'].sum() # Totaal LM van alle gebundelde zendingen
@@ -72,7 +72,7 @@ def app():
             st.write("---") # Visuele scheiding
 
             # --- Totaaloverzicht per Dienst_Categorie (Aantallen en LM) ---
-            st.subheader("2. Totaal Aantal Unieke Zendingen en Laadmeters per Dienst Categorie")
+            st.subheader("2. Detail") # Aangepast: 'Totaal Aantal Unieke Zendingen en Laadmeters per Dienst Categorie' -> 'Detail'
 
             # Groepeer nu op de NIEUWE 'Dienst_Categorie' kolom en tel het aantal unieke Verzending-ID's + som LM
             df_summary_by_category = df_grouped.groupby('Dienst_Categorie').agg(
@@ -96,7 +96,7 @@ def app():
     st.write("---") # Visuele scheiding voor de nieuwe sectie
 
     # --- Nieuwe sectie: Voertuigbezetting Input ---
-    st.subheader("3. Voertuigbezetting Invoer")
+    st.subheader("3. Voertuigen") # Aangepast: 'Voertuigbezetting Invoer' -> 'Voertuigen'
 
     # Kolomheaders voor de tabel
     col_labels = st.columns([0.2, 0.4, 0.4]) # Pas de breedte aan indien nodig
@@ -115,29 +115,23 @@ def app():
         with cols[0]:
             st.write(v_type)
         with cols[1]:
-            # Gebruik een unieke sleutel voor elk inputveld
             input_values[f'{v_type}_Beschikbaar'] = st.number_input(
-                " ", # Label is leeg want de kolomheader is al aanwezig
+                " ", 
                 min_value=0,
                 value=0,
-                key=f'{v_type}_Beschikbaar_input', # Unieke sleutel
-                label_visibility="collapsed" # Verberg het label van de number_input
+                key=f'{v_type}_Beschikbaar_input', 
+                label_visibility="collapsed" 
             )
         with cols[2]:
             input_values[f'{v_type}_Werk'] = st.number_input(
-                " ", # Label is leeg
+                " ", 
                 min_value=0,
                 value=0,
-                key=f'{v_type}_Werk_input', # Unieke sleutel
-                label_visibility="collapsed" # Verberg het label van de number_input
+                key=f'{v_type}_Werk_input', 
+                label_visibility="collapsed" 
             )
     
-    st.write("---") # Visuele scheiding
-
-    # Optioneel: Toon de ingevoerde waarden (voor debugging of bevestiging)
-    # st.write("Ingevoerde waarden:")
-    # st.write(input_values)
-
+    st.write("---") 
 
 if __name__ == '__main__':
     app()
