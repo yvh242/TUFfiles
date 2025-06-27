@@ -11,6 +11,7 @@ def app():
     De app bundelt data per unieke 'Verzending-ID'.
     Er wordt een nieuwe 'Dienst_Categorie' kolom aangemaakt op basis van 'Verzending-ID' en 'Type'.
     Vervolgens worden de **totalen van unieke zendingen** en **totale Laadmeters (LM)** getoond voor alle zendingen en per 'Dienst_Categorie'.
+    Daarnaast is er een sectie om de beschikbaarheid en werk van voertuigen in te voeren.
     """)
 
     uploaded_file = st.file_uploader("Kies een Excel-bestand", type=["xlsx", "xls"])
@@ -21,8 +22,6 @@ def app():
             df = pd.read_excel(uploaded_file)
 
             # --- Controleer op vereiste kolommen ---
-            # 'Verzending-ID', 'LM', en 'Type' zijn de minimaal vereiste kolommen voor dit rapport.
-            # 'Kg' en 'm³' zijn niet strikt nodig voor de output, maar je kunt ze laten staan in je Excel.
             required_columns_for_this_report = ['Verzending-ID', 'LM', 'Type'] 
             
             missing_columns = [col for col in required_columns_for_this_report if col not in df.columns]
@@ -90,10 +89,55 @@ def app():
             
             st.dataframe(df_summary_by_category, hide_index=True)
 
-
         except Exception as e:
             st.error(f"Er is een fout opgetreden bij het verwerken van het bestand: {e}. Controleer of het Excel-bestand de juiste opmaak en kolommen bevat.")
             st.error("Gedetailleerde foutmelding: " + str(e))
+    
+    st.write("---") # Visuele scheiding voor de nieuwe sectie
+
+    # --- Nieuwe sectie: Voertuigbezetting Input ---
+    st.subheader("3. Voertuigbezetting Invoer")
+
+    # Kolomheaders voor de tabel
+    col_labels = st.columns([0.2, 0.4, 0.4]) # Pas de breedte aan indien nodig
+    with col_labels[0]:
+        st.write("**Type Voertuig**")
+    with col_labels[1]:
+        st.write("**Beschikbaar**")
+    with col_labels[2]:
+        st.write("**Werk**")
+
+    voertuig_types = ["Trekker", "Vrachtwagens", "Bestelwagens"]
+    input_values = {}
+
+    for v_type in voertuig_types:
+        cols = st.columns([0.2, 0.4, 0.4])
+        with cols[0]:
+            st.write(v_type)
+        with cols[1]:
+            # Gebruik een unieke sleutel voor elk inputveld
+            input_values[f'{v_type}_Beschikbaar'] = st.number_input(
+                " ", # Label is leeg want de kolomheader is al aanwezig
+                min_value=0,
+                value=0,
+                key=f'{v_type}_Beschikbaar_input', # Unieke sleutel
+                label_visibility="collapsed" # Verberg het label van de number_input
+            )
+        with cols[2]:
+            input_values[f'{v_type}_Werk'] = st.number_input(
+                " ", # Label is leeg
+                min_value=0,
+                value=0,
+                key=f'{v_type}_Werk_input', # Unieke sleutel
+                label_visibility="collapsed" # Verberg het label van de number_input
+            )
+    
+    st.write("---") # Visuele scheiding
+
+    # Optioneel: Toon de ingevoerde waarden (voor debugging of bevestiging)
+    # st.write("Ingevoerde waarden:")
+    # st.write(input_values)
+
 
 if __name__ == '__main__':
     app()
