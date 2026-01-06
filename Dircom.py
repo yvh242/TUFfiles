@@ -39,13 +39,13 @@ def app():
             
             # --- Aanmaken van de nieuwe Afdeling kolom met np.select ---
             conditions = [
-                (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'Laden'),
-                (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'levering'),
-                (df['Verzending-ID'] >= 2510000000) & (df['Verzending-ID'] <= 2510999999) & (df['Type'] == 'Transport'),
-                (df['Verzending-ID'] < 2510000000) & (df['Type'] == 'Laden'),
-                (df['Verzending-ID'] > 2510999999) & (df['Type'] == 'Laden'),
-                (df['Verzending-ID'] < 2510000000) & (df['Type'] != 'Laden'),
-                (df['Verzending-ID'] > 2510999999) & (df['Type'] != 'Laden')
+                (df['Verzending-ID'] >= 2610000000) & (df['Verzending-ID'] <= 2610999999) & (df['Type'] == 'Laden'),
+                (df['Verzending-ID'] >= 2610000000) & (df['Verzending-ID'] <= 2610999999) & (df['Type'] == 'levering'),
+                (df['Verzending-ID'] >= 2610000000) & (df['Verzending-ID'] <= 2610999999) & (df['Type'] == 'Transport'),
+                (df['Verzending-ID'] < 2610000000) & (df['Type'] == 'Laden'),
+                (df['Verzending-ID'] > 2610999999) & (df['Type'] == 'Laden'),
+                (df['Verzending-ID'] < 2610000000) & (df['Type'] != 'Laden'),
+                (df['Verzending-ID'] > 2610999999) & (df['Type'] != 'Laden')
             ]
 
             choices = ['ICL AFH', 'ICL LEV', 'ICL DIRECT', 'TUF EXPORT', 'TUF EXPORT', 'TUF IMPORT', 'TUF IMPORT']
