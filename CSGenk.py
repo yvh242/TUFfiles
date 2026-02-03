@@ -42,9 +42,18 @@ if uploaded_file:
     with col2:
         # --- SECTIE 3: WACHTUREN PER KLANT ---
         st.subheader("👥 Gem. Wachturen per Klant")
-        client_wait = df.groupby('Client')['Wait_Hours'].mean().sort_values(ascending=False).reset_index()
+    
+        # STAP 1: Groepeer eerst per Rit en Klant om de wachttijd per unieke rit te krijgen
+        # We nemen de 'max', omdat de wachttijd voor die rit op elke regel hetzelfde is.
+        unique_trips = df.groupby(['Tripnr', 'Client'])['Wait_Hours'].max().reset_index()
+    
+        # STAP 2: Bereken nu het gemiddelde per klant op basis van deze unieke ritten
+        client_wait = unique_trips.groupby('Client')['Wait_Hours'].mean().sort_values(ascending=False).reset_index()
+    
         client_wait.columns = ['Klant', 'Gem. Wachturen (u)']
         st.table(client_wait.round(2))
+        
+        
 
     st.divider()
 
