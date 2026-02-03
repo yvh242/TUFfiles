@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 
-st.set_page_config(page_title="Logistiek Dashboard", layout="wide")
+st.set_page_config(page_title="Logistiek Overzicht", layout="wide")
 
-st.title("🚚 CS GENK Dashboard")
-st.markdown("Upload je Excel-bestand om de prestaties te analyseren.")
+st.title("📊 Logistiek Transport Overzicht")
+st.markdown("Upload je Excel-bestand voor een cijfermatige analyse.")
 
 # 1. Bestand uploaden
 uploaded_file = st.file_uploader("Kies een Excel bestand", type=['xlsx'])
@@ -16,70 +15,50 @@ if uploaded_file:
     
     # Data Cleaning & Voorbereiding
     df['Date'] = pd.to_datetime(df['Date'])
-    df['Month'] = df['Date'].dt.to_period('M').astype(str)
+    df['Maand'] = df['Date'].dt.month_name()
     
     # Wachttijd berekenen (Departure - Arrival)
-    # We gaan ervan uit dat dit tijd-objecten zijn
-    df['Arrival'] = pd.to_timedelta(df['Arrival'].astype(str))
-    df['Departure'] = pd.to_timedelta(df['Departure'].astype(str))
-    df['Wait_Hours'] = (df['Departure'] - df['Arrival']).dt.total_seconds() / 3600
+    df['Arrival_td'] = pd.to_timedelta(df['Arrival'].astype(str))
+    df['Departure_td'] = pd.to_timedelta(df['Departure'].astype(str))
+    df['Wait_Hours'] = (df['Departure_td'] - df['Arrival_td']).dt.total_seconds() / 3600
 
-    # Layout: Kolommen voor filters of statistieken
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Ritten en Laadmeters per Dag")
-        # Groeperen per dag: aantal unieke ritten en som van LM
-        daily_stats = df.groupby('Date').agg({'Tripnr': 'nunique', 'LM': 'sum'}).reset_index()
-        daily_stats.columns = ['Datum', 'Aantal Ritten', 'Totaal LM']
-        
-        fig_daily = px.bar(daily_stats, x='Datum', y='Totaal LM', hover_data=['Aantal Ritten'],
-                           title="Totaal Laadmeters per Dag", color_discrete_sequence=['#00CC96'])
-        st.plotly_chart(fig_daily, use_container_width=True)
-
-    with col2:
-        st.subheader("Gemiddelde Wachttijd per Maand")
-    
-        # Berekening: Groeperen op maandnaam en gemiddelde berekenen
-        # 'dt.month_name()' geeft de volledige naam (bijv. January)
-        df['Maandnaam'] = df['Date'].dt.month_name()
-        monthly_wait_table = df.groupby('Maandnaam')['Wait_Hours'].mean().reset_index()
-    
-        # Kolomnamen vertalen voor de tabel
-        monthly_wait_table.columns = ['Maand', 'Gem. Wachturen']
-    
-        # Afronden op 2 decimalen voor de leesbaarheid
-        monthly_wait_table['Gem. Wachturen'] = monthly_wait_table['Gem. Wachturen'].round(2)
-    
-        # Tabel weergeven in Streamlit
-        st.table(monthly_wait_table)
+    # --- SECTIE 1: DAGELIJKS OVERZICHT ---
+    st.subheader("📅 Ritten en Laadmeters per Dag")
+    daily_stats = df.groupby(df['Date'].dt.date).agg({'Tripnr': 'nunique', 'LM': 'sum'}).reset_index()
+    daily_stats.columns = ['Datum', 'Aantal Ritten', 'Totaal LM']
+    st.dataframe(daily_stats, use_container_width=True)
 
     st.divider()
 
-    col3, col4 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-    with col3:
-        st.subheader("Wachttijd per Klant")
+    with col1:
+        # --- SECTIE 2: WACHTUREN PER MAAND ---
+        st.subheader("⏳ Gem. Wachturen per Maand")
+        monthly_wait = df.groupby('Maand')['Wait_Hours'].mean().reset_index()
+        monthly_wait.columns = ['Maand', 'Gem. Wachturen (u)']
+        st.table(monthly_wait.round(2))
+
+    with col2:
+        # --- SECTIE 3: WACHTUREN PER KLANT ---
+        st.subheader("👥 Gem. Wachturen per Klant")
         client_wait = df.groupby('Client')['Wait_Hours'].mean().sort_values(ascending=False).reset_index()
-        fig_client_wait = px.bar(client_wait, x='Wait_Hours', y='Client', orientation='h',
-                                 title="Gem. Wachturen per Klant", color='Wait_Hours')
-        st.plotly_chart(fig_client_wait, use_container_width=True)
+        client_wait.columns = ['Klant', 'Gem. Wachturen (u)']
+        st.table(client_wait.round(2))
 
-    with col4:
-        st.subheader("Laadmeters per Klant (Totaal vs Gemiddelde)")
-        client_lm = df.groupby(['Month', 'Client'])['LM'].agg(['sum', 'mean']).reset_index()
-        
-        # Keuze voor de gebruiker
-        option = st.selectbox('Bekijk voor LM:', ('Totaal per Maand', 'Gemiddelde per Maand'))
-        y_val = 'sum' if option == 'Totaal per Maand' else 'mean'
-        
-        fig_lm_client = px.bar(client_lm, x='Month', y=y_val, color='Client', barmode='group',
-                               title=f"{option} per Klant")
-        st.plotly_chart(fig_lm_client, use_container_width=True)
+    st.divider()
 
-    # Toon ruwe data optie
-    if st.checkbox("Toon ruwe data"):
+    # --- SECTIE 4: LAADMETERS PER KLANT PER MAAND ---
+    st.subheader("🚛 Laadmeters per Klant per Maand")
+    client_lm_stats = df.groupby(['Maand', 'Client'])['LM'].agg(['sum', 'mean']).reset_index()
+    client_lm_stats.columns = ['Maand', 'Klant', 'Totaal LM', 'Gemiddelde LM']
+    
+    # Weergeven als een interactieve tabel (dataframe) zodat je kunt sorteren
+    st.dataframe(client_lm_stats.round(2), use_container_width=True)
+
+    # Optioneel: Ruwe data onderaan
+    with st.expander("Klik hier om de brongegevens te bekijken"):
         st.write(df)
 
 else:
-    st.info("Wachten op upload van bestand...")
+    st.info("Upload een Excel-bestand om de tabellen te genereren.")
