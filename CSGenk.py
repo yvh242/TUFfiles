@@ -39,10 +39,20 @@ if uploaded_file:
 
     with col2:
         st.subheader("Gemiddelde Wachttijd per Maand")
-        monthly_wait = df.groupby('Month')['Wait_Hours'].mean().reset_index()
-        fig_wait_month = px.line(monthly_wait, x='Month', y='Wait_Hours', 
-                                 title="Gem. Wachturen per Maand", markers=True)
-        st.plotly_chart(fig_wait_month, use_container_width=True)
+    
+        # Berekening: Groeperen op maandnaam en gemiddelde berekenen
+        # 'dt.month_name()' geeft de volledige naam (bijv. January)
+        df['Maandnaam'] = df['Date'].dt.month_name()
+        monthly_wait_table = df.groupby('Maandnaam')['Wait_Hours'].mean().reset_index()
+    
+        # Kolomnamen vertalen voor de tabel
+        monthly_wait_table.columns = ['Maand', 'Gem. Wachturen']
+    
+        # Afronden op 2 decimalen voor de leesbaarheid
+        monthly_wait_table['Gem. Wachturen'] = monthly_wait_table['Gem. Wachturen'].round(2)
+    
+        # Tabel weergeven in Streamlit
+        st.table(monthly_wait_table)
 
     st.divider()
 
