@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Logistiek Overzicht", layout="wide")
+st.set_page_config(page_title="CS Genk Dashboard", layout="wide")
 
-st.title("📊 Logistiek Transport Overzicht")
+st.title("📊 Dashboard Genk CS")
 st.markdown("Upload je Excel-bestand voor een cijfermatige analyse.")
 
 # 1. Bestand uploaden
