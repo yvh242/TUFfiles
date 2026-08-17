@@ -1,3 +1,5 @@
+import re
+
 import streamlit as st
 import pandas as pd
 from email.mime.multipart import MIMEMultipart
@@ -6,11 +8,12 @@ from email.mime.text import MIMEText
 st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="wide")
 
 # ---------------------------------------------------------------------------
-# HARDCODED: koppeling Opdrachtgever-code -> (e-mailadres, klantnaam)
+# HARDCODED: koppeling Opdrachtgever-code -> (e-mailadres(sen), klantnaam)
 # Pas/vul deze lijst hier verder aan.
 # LET OP: 'Opdrachtgever' is een numeriek veld in het Excel-bestand.
 # Zet de codes hieronder toch als STRING (bv. "1004438", niet 1004438);
 # de code zet de kolom uit Excel automatisch om naar hetzelfde stringformaat.
+# Meerdere e-mailadressen mogen gescheiden worden met ';' of ','.
 # ---------------------------------------------------------------------------
 OPDRACHTGEVER_INFO = {
     "1004438": {"email": "yves.vanholsbeke@transuniverse.be", "naam": "Cargoliner"},
@@ -33,6 +36,37 @@ BASIS_KOLOMMEN = [
 
 st.title("📦 Verzendingsoverzicht per Opdrachtgever")
 
+# ---------------------------------------------------------------------------
+# Tabel met hardcoded opdrachtgevers: hier kan je per opdrachtgever aan-
+# of uitvinken of er een overzicht/mail voor gemaakt moet worden.
+# ---------------------------------------------------------------------------
+st.subheader("Opdrachtgevers")
+
+df_opdrachtgevers = pd.DataFrame(
+    [
+        {
+            "Code": code,
+            "Klantnaam": info["naam"],
+            "E-mail": info["email"],
+            "Overzicht maken": True,
+        }
+        for code, info in OPDRACHTGEVER_INFO.items()
+    ]
+)
+
+opdrachtgevers_selectie = st.data_editor(
+    df_opdrachtgevers,
+    column_config={
+        "Overzicht maken": st.column_config.CheckboxColumn(
+            "Overzicht maken", help="Vink af om deze opdrachtgever over te slaan"
+        ),
+    },
+    disabled=["Code", "Klantnaam", "E-mail"],
+    hide_index=True,
+    use_container_width=True,
+    key="opdrachtgevers_editor",
+)
+
 uploaded_file = st.file_uploader("Upload het Excel-bestand", type=["xlsx", "xls"])
 
 
@@ -44,6 +78,17 @@ def normaliseer_opdrachtgever(x):
     if isinstance(x, float) and x.is_integer():
         return str(int(x))
     return str(x).strip()
+
+
+def normaliseer_emails(email_veld: str) -> str:
+    """Zet een e-mailveld met meerdere adressen (gescheiden door ';' of ',')
+    om naar een correct geformatteerde, komma-gescheiden lijst voor de
+    'To'-header van de mail."""
+    if not email_veld:
+        return ""
+    onderdelen = re.split(r"[;,]", str(email_veld))
+    onderdelen = [e.strip() for e in onderdelen if e.strip()]
+    return ", ".join(onderdelen)
 
 
 def bereken_afzender(row) -> str:
@@ -123,7 +168,8 @@ def bouw_html_tabel(overzicht: pd.DataFrame) -> str:
 def bouw_eml(to_email: str, subject: str, html_body: str) -> bytes:
     """Bouwt een .eml-bestand dat Outlook als bewerkbare, klaarstaande
     mail opent (X-Unsent: 1 zorgt dat het als concept opent i.p.v.
-    als gelezen bericht)."""
+    als gelezen bericht). 'to_email' mag meerdere, komma-gescheiden
+    adressen bevatten."""
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["To"] = to_email
@@ -164,17 +210,13 @@ if uploaded_file is not None:
 
     df["Opdrachtgever"] = df["Opdrachtgever"].apply(normaliseer_opdrachtgever)
 
-    opdrachtgevers_in_bestand = set(df["Opdrachtgever"].dropna().unique())
-    onbekende_opdrachtgevers = opdrachtgevers_in_bestand - set(OPDRACHTGEVER_INFO.keys())
-    if onbekende_opdrachtgevers:
-        st.warning(
-            "Volgende opdrachtgever-codes staan in het bestand maar hebben geen "
-            f"gekoppeld e-mailadres in de code: {', '.join(sorted(onbekende_opdrachtgevers))}"
-        )
+    for _, opdrachtgever_rij in opdrachtgevers_selectie.iterrows():
+        if not opdrachtgever_rij["Overzicht maken"]:
+            continue
 
-    for code, info in OPDRACHTGEVER_INFO.items():
-        email = info["email"]
-        naam = info["naam"]
+        code = opdrachtgever_rij["Code"]
+        naam = opdrachtgever_rij["Klantnaam"]
+        email = normaliseer_emails(opdrachtgever_rij["E-mail"])
 
         subset = df[df["Opdrachtgever"] == code]
         if subset.empty:
