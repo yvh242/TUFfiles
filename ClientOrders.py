@@ -9,9 +9,8 @@ st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="
 # Pas deze lijst hier aan naar wens.
 # ---------------------------------------------------------------------------
 OPDRACHTGEVER_EMAILS = {
-    "Klant A": "klantA@example.com",
-    "Klant B": "klantB@example.com",
-    "Klant C": "klantC@example.com",
+    "1004438": "yves.vanholsbeke@transuniverse.be",
+    "1001764": "yves.vanholsbeke@transuniverse.be",
 }
 
 # Kolommen die in het overzicht per opdrachtgever moeten komen (in deze volgorde)
