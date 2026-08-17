@@ -19,7 +19,7 @@ st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="
 # ---------------------------------------------------------------------------
 OPDRACHTGEVER_INFO = {
     "1004438": {"email": "info@cargolinerbelgium.com", "naam": "CARGOLINER BELGIUM BVBA"},
-    "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com", "naam": "ECU"},
+    "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com","naam": "ECU"},
     "1001251": {"email": "transport@denycargo.be", "naam": "DENY CARGO"},
 }
 
@@ -83,8 +83,6 @@ def normaliseer_opdrachtgever(x):
 
 
 st.title("📦 Verzendingsoverzicht per Opdrachtgever")
-
-st.link_button("testMail", SHAREPOINT_MAIL_LINK)
 
 with st.expander("🔄 Mailadressen vernieuwen (enkel voor deze sessie)"):
     st.caption(
