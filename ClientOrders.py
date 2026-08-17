@@ -17,7 +17,7 @@ st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="
 # ---------------------------------------------------------------------------
 OPDRACHTGEVER_INFO = {
     "1004438": {"email": "info@cargolinerbelgium.com", "naam": "CARGOLINER BELGIUM BVBA"},
-    "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com", "naam": "ECU",},
+    "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com", "naam": "ECU"},
     "1001251": {"email": "transport@denycargo.be", "naam": "DENY CARGO"},
 }
 
@@ -36,6 +36,11 @@ BASIS_KOLOMMEN = [
 ]
 
 st.title("📦 Verzendingsoverzicht per Opdrachtgever")
+
+st.link_button(
+    "testMail",
+    "https://transuniversegroup.sharepoint.com/:x:/s/test/IQAx-1WjSi8STprH4EdAnxkqAZIcMStzyLAi3jSMtQyQeac?e=aJYYVf",
+)
 
 # ---------------------------------------------------------------------------
 # Tabel met hardcoded opdrachtgevers: hier kan je per opdrachtgever aan-
