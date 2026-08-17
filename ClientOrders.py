@@ -17,9 +17,8 @@ st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="
 # ---------------------------------------------------------------------------
 OPDRACHTGEVER_INFO = {
     "1004438": {"email": "info@cargolinerbelgium.com", "naam": "CARGOLINER BELGIUM BVBA"},
-    "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com", "naam": "ECU"},
+    "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com", "naam": "ECU",},
     "1001251": {"email": "transport@denycargo.be", "naam": "DENY CARGO"},
-    
 }
 
 # Basiskolommen die altijd in het overzicht moeten staan en verplicht
@@ -137,6 +136,8 @@ def bouw_overzicht(subset: pd.DataFrame) -> pd.DataFrame:
 
     if "Afzender" in subset.columns:
         overzicht["Afzender"] = subset.apply(bereken_afzender, axis=1)
+
+    overzicht = overzicht.sort_values(by="Type", kind="stable").reset_index(drop=True)
 
     return overzicht
 
