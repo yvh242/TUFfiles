@@ -17,8 +17,9 @@ OPDRACHTGEVER_INFO = {
     "1001764": {"email": "yves.vanholsbeke@transuniverse.be", "naam": "ECU"},
 }
 
-# Kolommen die in het overzicht per opdrachtgever moeten komen (in deze volgorde)
-KOLOMMEN_OVERZICHT = [
+# Basiskolommen die altijd in het overzicht moeten staan en verplicht
+# aanwezig moeten zijn in het geuploade bestand.
+BASIS_KOLOMMEN = [
     "Verzending-ID",
     "Type",
     "PC",
@@ -45,6 +46,54 @@ def normaliseer_opdrachtgever(x):
     return str(x).strip()
 
 
+def bereken_afzender(row) -> str:
+    """Bepaalt de weergave van de 'Afzender'-kolom op basis van 'Type':
+    - Type = 'Laden'    -> '-> Afzender'
+    - Type = 'levering' -> '<- Afzender'
+    - andere waarden    -> leeg
+    (niet hoofdlettergevoelig, spaties worden genegeerd)
+    """
+    type_waarde = str(row.get("Type", "")).strip().lower()
+    afzender = row.get("Afzender", "")
+    afzender = "" if pd.isna(afzender) else str(afzender).strip()
+
+    if type_waarde == "laden":
+        return f"-> {afzender}"
+    elif type_waarde == "levering":
+        return f"<- {afzender}"
+    else:
+        return ""
+
+
+def bouw_overzicht(subset: pd.DataFrame) -> pd.DataFrame:
+    """Bouwt het overzicht op met de basiskolommen, aangevuld met de
+    optionele kolommen 'Klantnaam' (-> 'Naam'), 'LaadLosRef' en
+    'Afzender' (berekend), telkens enkel als ze in het bestand aanwezig zijn."""
+    overzicht = pd.DataFrame(index=subset.index)
+
+    overzicht["Verzending-ID"] = subset["Verzending-ID"]
+    overzicht["Type"] = subset["Type"]
+    overzicht["PC"] = subset["PC"]
+    overzicht["Plaatsnaam"] = subset["Plaatsnaam"]
+
+    if "Klantnaam" in subset.columns:
+        overzicht["Naam"] = subset["Klantnaam"]
+
+    overzicht["Kg"] = subset["Kg"]
+    overzicht["LM"] = subset["LM"]
+    overzicht["Aantal"] = subset["Aantal"]
+    overzicht["Goederen"] = subset["Goederen"]
+    overzicht["ETA"] = subset["ETA"]
+
+    if "LaadLosRef" in subset.columns:
+        overzicht["LaadLosRef"] = subset["LaadLosRef"]
+
+    if "Afzender" in subset.columns:
+        overzicht["Afzender"] = subset.apply(bereken_afzender, axis=1)
+
+    return overzicht
+
+
 def bouw_html_tabel(overzicht: pd.DataFrame) -> str:
     """Bouwt een mooi opgemaakte, uitgelijnde HTML-tabel voor in de mail."""
     kolom_stijl = (
@@ -53,23 +102,18 @@ def bouw_html_tabel(overzicht: pd.DataFrame) -> str:
     )
     header_stijl = kolom_stijl + " background-color:#1F4E78; color:#ffffff; text-align:left;"
 
-    html = [
-        '<table style="border-collapse:collapse; width:100%;">',
-        "<tr>",
-    ]
-    for kol in KOLOMMEN_OVERZICHT:
+    html = ['<table style="border-collapse:collapse; width:100%;">', "<tr>"]
+    for kol in overzicht.columns:
         html.append(f'<th style="{header_stijl}">{kol}</th>')
     html.append("</tr>")
 
     for i, (_, row) in enumerate(overzicht.iterrows()):
         rij_kleur = "#ffffff" if i % 2 == 0 else "#F2F2F2"
         html.append("<tr>")
-        for kol in KOLOMMEN_OVERZICHT:
+        for kol in overzicht.columns:
             waarde = row[kol]
             waarde = "" if pd.isna(waarde) else waarde
-            html.append(
-                f'<td style="{kolom_stijl} background-color:{rij_kleur};">{waarde}</td>'
-            )
+            html.append(f'<td style="{kolom_stijl} background-color:{rij_kleur};">{waarde}</td>')
         html.append("</tr>")
 
     html.append("</table>")
@@ -85,7 +129,10 @@ def bouw_eml(to_email: str, subject: str, html_body: str) -> bytes:
     msg["To"] = to_email
     msg["X-Unsent"] = "1"
 
-    plain_fallback = "Deze mail bevat een overzicht in tabelvorm. Open dit bestand in Outlook om de opgemaakte versie te zien."
+    plain_fallback = (
+        "Deze mail bevat een overzicht in tabelvorm. "
+        "Open dit bestand in Outlook om de opgemaakte versie te zien."
+    )
     msg.attach(MIMEText(plain_fallback, "plain"))
     msg.attach(MIMEText(html_body, "html"))
 
@@ -99,14 +146,21 @@ if uploaded_file is not None:
         st.error(f"Kon het bestand niet inlezen: {e}")
         st.stop()
 
-    # Check of alle nodige kolommen aanwezig zijn
-    verplichte_kolommen = set(KOLOMMEN_OVERZICHT + ["Opdrachtgever"])
+    # Check of alle verplichte basiskolommen aanwezig zijn
+    verplichte_kolommen = set(BASIS_KOLOMMEN + ["Opdrachtgever"])
     ontbrekend = verplichte_kolommen - set(df.columns)
     if ontbrekend:
         st.error(f"Volgende kolommen ontbreken in het bestand: {', '.join(sorted(ontbrekend))}")
         st.stop()
 
     st.success(f"Bestand ingelezen: {len(df)} rijen gevonden.")
+
+    # Info over welke optionele kolommen gevonden werden
+    optionele_kolommen_gevonden = [
+        k for k in ["Klantnaam", "Afzender", "LaadLosRef"] if k in df.columns
+    ]
+    if optionele_kolommen_gevonden:
+        st.caption(f"Extra kolommen gevonden en verwerkt: {', '.join(optionele_kolommen_gevonden)}")
 
     df["Opdrachtgever"] = df["Opdrachtgever"].apply(normaliseer_opdrachtgever)
 
@@ -129,7 +183,7 @@ if uploaded_file is not None:
         st.markdown("---")
         st.subheader(f"📋 {naam}  (code {code})  ·  {email}")
 
-        overzicht = subset[KOLOMMEN_OVERZICHT].copy()
+        overzicht = bouw_overzicht(subset)
         st.dataframe(overzicht, use_container_width=True, hide_index=True)
 
         # ---- HTML-mail opbouwen ----
