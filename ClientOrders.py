@@ -1,20 +1,20 @@
 import streamlit as st
 import pandas as pd
-import urllib.parse
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="wide")
 
 # ---------------------------------------------------------------------------
-# HARDCODED: koppeling Opdrachtgever -> e-mailadres
-# Pas deze lijst hier aan naar wens.
+# HARDCODED: koppeling Opdrachtgever-code -> (e-mailadres, klantnaam)
+# Pas/vul deze lijst hier verder aan.
 # LET OP: 'Opdrachtgever' is een numeriek veld in het Excel-bestand.
-# Zet de codes hieronder toch als STRING (bv. "1001", niet 1001),
+# Zet de codes hieronder toch als STRING (bv. "1004438", niet 1004438);
 # de code zet de kolom uit Excel automatisch om naar hetzelfde stringformaat.
 # ---------------------------------------------------------------------------
-OPDRACHTGEVER_EMAILS = {
-    "1004438": "yves.vanholsbeke@transuniverse.be",
-    "1001764": "yves.vanholsbeke@transuniverse.be",
-    
+OPDRACHTGEVER_INFO = {
+    "1004438": {"email": "yves.vanholsbeke@transuniverse.be", "naam": "Cargoliner"},
+    "1001764": {"email": "yves.vanholsbeke@transuniverse.be", "naam": "ECU"},
 }
 
 # Kolommen die in het overzicht per opdrachtgever moeten komen (in deze volgorde)
@@ -34,6 +34,64 @@ st.title("📦 Verzendingsoverzicht per Opdrachtgever")
 
 uploaded_file = st.file_uploader("Upload het Excel-bestand", type=["xlsx", "xls"])
 
+
+def normaliseer_opdrachtgever(x):
+    """Zet Opdrachtgever om naar een schone string, ook als het een
+    numerieke waarde is (voorkomt bv. '123.0' i.p.v. '123')."""
+    if pd.isna(x):
+        return x
+    if isinstance(x, float) and x.is_integer():
+        return str(int(x))
+    return str(x).strip()
+
+
+def bouw_html_tabel(overzicht: pd.DataFrame) -> str:
+    """Bouwt een mooi opgemaakte, uitgelijnde HTML-tabel voor in de mail."""
+    kolom_stijl = (
+        "border:1px solid #cccccc; padding:6px 10px; "
+        "font-family:Calibri,Arial,sans-serif; font-size:11pt;"
+    )
+    header_stijl = kolom_stijl + " background-color:#1F4E78; color:#ffffff; text-align:left;"
+
+    html = [
+        '<table style="border-collapse:collapse; width:100%;">',
+        "<tr>",
+    ]
+    for kol in KOLOMMEN_OVERZICHT:
+        html.append(f'<th style="{header_stijl}">{kol}</th>')
+    html.append("</tr>")
+
+    for i, (_, row) in enumerate(overzicht.iterrows()):
+        rij_kleur = "#ffffff" if i % 2 == 0 else "#F2F2F2"
+        html.append("<tr>")
+        for kol in KOLOMMEN_OVERZICHT:
+            waarde = row[kol]
+            waarde = "" if pd.isna(waarde) else waarde
+            html.append(
+                f'<td style="{kolom_stijl} background-color:{rij_kleur};">{waarde}</td>'
+            )
+        html.append("</tr>")
+
+    html.append("</table>")
+    return "".join(html)
+
+
+def bouw_eml(to_email: str, subject: str, html_body: str) -> bytes:
+    """Bouwt een .eml-bestand dat Outlook als bewerkbare, klaarstaande
+    mail opent (X-Unsent: 1 zorgt dat het als concept opent i.p.v.
+    als gelezen bericht)."""
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["To"] = to_email
+    msg["X-Unsent"] = "1"
+
+    plain_fallback = "Deze mail bevat een overzicht in tabelvorm. Open dit bestand in Outlook om de opgemaakte versie te zien."
+    msg.attach(MIMEText(plain_fallback, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+
+    return msg.as_bytes()
+
+
 if uploaded_file is not None:
     try:
         df = pd.read_excel(uploaded_file)
@@ -50,77 +108,62 @@ if uploaded_file is not None:
 
     st.success(f"Bestand ingelezen: {len(df)} rijen gevonden.")
 
-    def normaliseer_opdrachtgever(x):
-        """Zet Opdrachtgever om naar een schone string, ook als het een
-        numerieke waarde is (voorkomt bv. '123.0' i.p.v. '123')."""
-        if pd.isna(x):
-            return x
-        if isinstance(x, float) and x.is_integer():
-            return str(int(x))
-        return str(x).strip()
-
     df["Opdrachtgever"] = df["Opdrachtgever"].apply(normaliseer_opdrachtgever)
 
-    opdrachtgevers_in_bestand = set(
-        str(x).strip() for x in df["Opdrachtgever"].dropna().unique()
-    )
-    onbekende_opdrachtgevers = opdrachtgevers_in_bestand - set(OPDRACHTGEVER_EMAILS.keys())
+    opdrachtgevers_in_bestand = set(df["Opdrachtgever"].dropna().unique())
+    onbekende_opdrachtgevers = opdrachtgevers_in_bestand - set(OPDRACHTGEVER_INFO.keys())
     if onbekende_opdrachtgevers:
         st.warning(
-            "Volgende opdrachtgevers staan in het bestand maar hebben geen "
+            "Volgende opdrachtgever-codes staan in het bestand maar hebben geen "
             f"gekoppeld e-mailadres in de code: {', '.join(sorted(onbekende_opdrachtgevers))}"
         )
 
-    for opdrachtgever, email in OPDRACHTGEVER_EMAILS.items():
-        subset = df[df["Opdrachtgever"] == opdrachtgever]
+    for code, info in OPDRACHTGEVER_INFO.items():
+        email = info["email"]
+        naam = info["naam"]
 
+        subset = df[df["Opdrachtgever"] == code]
         if subset.empty:
             continue
 
         st.markdown("---")
-        st.subheader(f"📋 {opdrachtgever}  ·  {email}")
+        st.subheader(f"📋 {naam}  (code {code})  ·  {email}")
 
         overzicht = subset[KOLOMMEN_OVERZICHT].copy()
         st.dataframe(overzicht, use_container_width=True, hide_index=True)
 
-        # ---- Mailtekst opbouwen (platte tekst tabel) ----
-        mail_lines = []
-        mail_lines.append("Beste,")
-        mail_lines.append("")
-        mail_lines.append(f"Hieronder vindt u het overzicht van de uit te voeren zendingen voor {opdrachtgever}:")
-        mail_lines.append("")
+        # ---- HTML-mail opbouwen ----
+        tabel_html = bouw_html_tabel(overzicht)
+        mail_html = f"""
+        <html>
+        <body style="font-family:Calibri,Arial,sans-serif; font-size:11pt;">
+            <p>Beste,</p>
+            <p>Hieronder vindt u het overzicht van de uit te voeren zendingen voor <b>{naam}</b>:</p>
+            {tabel_html}
+            <p>Met vriendelijke groeten,</p>
+        </body>
+        </html>
+        """
 
-        header = " | ".join(KOLOMMEN_OVERZICHT)
-        mail_lines.append(header)
-        mail_lines.append("-" * len(header))
-        for _, row in overzicht.iterrows():
-            regel = " | ".join(str(row[k]) for k in KOLOMMEN_OVERZICHT)
-            mail_lines.append(regel)
-
-        mail_lines.append("")
-        mail_lines.append("Met vriendelijke groeten,")
-
-        mail_body = "\n".join(mail_lines)
-        mail_subject = f"Overzicht uit te voeren zendingen - {opdrachtgever}"
+        mail_subject = f"Overzicht uit te voeren zendingen - {naam}"
 
         with st.expander("✉️ Mail voorbereiden"):
-            st.text_area(
-                "Mailtekst (aanpasbaar vóór verzending)",
-                mail_body,
-                height=280,
-                key=f"body_{opdrachtgever}",
-            )
+            st.markdown("**Voorbeeld van de mail:**")
+            st.markdown(mail_html, unsafe_allow_html=True)
 
-            mailto_link = (
-                f"mailto:{email}"
-                f"?subject={urllib.parse.quote(mail_subject)}"
-                f"&body={urllib.parse.quote(mail_body)}"
+            eml_bytes = bouw_eml(email, mail_subject, mail_html)
+
+            st.download_button(
+                label="📥 Download als Outlook-mail (.eml)",
+                data=eml_bytes,
+                file_name=f"Overzicht_{naam}_{code}.eml",
+                mime="message/rfc822",
+                key=f"eml_{code}",
             )
-            st.markdown(f"[📧 Open deze mail in je mailprogramma]({mailto_link})")
             st.caption(
-                "Let op: sommige mailprogramma's/browsers beperken de lengte van "
-                "mailto-links. Bij een groot aantal zendingen kan het nodig zijn "
-                "de tekst hierboven te kopiëren en manueel in je mailprogramma te plakken."
+                "Open het gedownloade .eml-bestand met een dubbelklik: het opent "
+                "automatisch als een nieuw, bewerkbaar concept-bericht in Outlook, "
+                "met de tabel al opgemaakt en klaar om te verzenden."
             )
 else:
     st.info("Upload een Excel-bestand om te starten.")
