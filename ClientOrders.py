@@ -7,10 +7,14 @@ st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="
 # ---------------------------------------------------------------------------
 # HARDCODED: koppeling Opdrachtgever -> e-mailadres
 # Pas deze lijst hier aan naar wens.
+# LET OP: 'Opdrachtgever' is een numeriek veld in het Excel-bestand.
+# Zet de codes hieronder toch als STRING (bv. "1001", niet 1001),
+# de code zet de kolom uit Excel automatisch om naar hetzelfde stringformaat.
 # ---------------------------------------------------------------------------
 OPDRACHTGEVER_EMAILS = {
     "1004438": "yves.vanholsbeke@transuniverse.be",
     "1001764": "yves.vanholsbeke@transuniverse.be",
+    
 }
 
 # Kolommen die in het overzicht per opdrachtgever moeten komen (in deze volgorde)
@@ -46,7 +50,20 @@ if uploaded_file is not None:
 
     st.success(f"Bestand ingelezen: {len(df)} rijen gevonden.")
 
-    opdrachtgevers_in_bestand = set(df["Opdrachtgever"].dropna().unique())
+    def normaliseer_opdrachtgever(x):
+        """Zet Opdrachtgever om naar een schone string, ook als het een
+        numerieke waarde is (voorkomt bv. '123.0' i.p.v. '123')."""
+        if pd.isna(x):
+            return x
+        if isinstance(x, float) and x.is_integer():
+            return str(int(x))
+        return str(x).strip()
+
+    df["Opdrachtgever"] = df["Opdrachtgever"].apply(normaliseer_opdrachtgever)
+
+    opdrachtgevers_in_bestand = set(
+        str(x).strip() for x in df["Opdrachtgever"].dropna().unique()
+    )
     onbekende_opdrachtgevers = opdrachtgevers_in_bestand - set(OPDRACHTGEVER_EMAILS.keys())
     if onbekende_opdrachtgevers:
         st.warning(
