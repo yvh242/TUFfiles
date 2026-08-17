@@ -1,5 +1,6 @@
 import re
 from io import BytesIO
+from urllib.parse import quote
 
 import requests
 import streamlit as st
@@ -200,6 +201,19 @@ def normaliseer_emails(email_veld: str) -> str:
     return ", ".join(onderdelen)
 
 
+NAV_LINK_PREFIX = (
+    "navision://client/run?servername=server05%26database=NAVITRANS%26company=TUF"
+    "%26target=Form%202028368%26view=SORTING(Field300,Field3)%26servertype=MSSQL%26position="
+)
+
+
+def bouw_nav_link(nav_waarde) -> str | None:
+    """Bouwt de Navision-link op basis van de waarde in de 'NAV'-kolom."""
+    if pd.isna(nav_waarde) or str(nav_waarde).strip() == "":
+        return None
+    return NAV_LINK_PREFIX + quote(str(nav_waarde).strip(), safe="")
+
+
 def bereken_afzender(row) -> str:
     """Bepaalt de weergave van de 'Afzender'-kolom op basis van 'Type':
     - Type = 'Laden'    -> '-> Afzender'
@@ -222,7 +236,8 @@ def bereken_afzender(row) -> str:
 def bouw_overzicht(subset: pd.DataFrame) -> pd.DataFrame:
     """Bouwt het overzicht op met de basiskolommen, aangevuld met de
     optionele kolommen 'Klantnaam' (-> 'Naam'), 'LaadLosRef' en
-    'Afzender' (berekend), telkens enkel als ze in het bestand aanwezig zijn."""
+    'Afzender' (berekend), telkens enkel als ze in het bestand aanwezig zijn.
+    Verwacht dat 'subset' al gesorteerd is (zie sorteer_op_type)."""
     overzicht = pd.DataFrame(index=subset.index)
 
     overzicht["Verzending-ID"] = subset["Verzending-ID"]
@@ -245,9 +260,12 @@ def bouw_overzicht(subset: pd.DataFrame) -> pd.DataFrame:
     if "Afzender" in subset.columns:
         overzicht["Afzender"] = subset.apply(bereken_afzender, axis=1)
 
-    overzicht = overzicht.sort_values(by="Type", kind="stable").reset_index(drop=True)
+    return overzicht.reset_index(drop=True)
 
-    return overzicht
+
+def sorteer_op_type(subset: pd.DataFrame) -> pd.DataFrame:
+    """Sorteert de rijen op 'Type', met behoud van de onderlinge volgorde."""
+    return subset.sort_values(by="Type", kind="stable").reset_index(drop=True)
 
 
 def bouw_html_tabel(overzicht: pd.DataFrame) -> str:
@@ -314,7 +332,7 @@ if uploaded_file is not None:
 
     # Info over welke optionele kolommen gevonden werden
     optionele_kolommen_gevonden = [
-        k for k in ["Klantnaam", "Afzender", "LaadLosRef"] if k in df.columns
+        k for k in ["Klantnaam", "Afzender", "LaadLosRef", "NAV"] if k in df.columns
     ]
     if optionele_kolommen_gevonden:
         st.caption(f"Extra kolommen gevonden en verwerkt: {', '.join(optionele_kolommen_gevonden)}")
@@ -333,11 +351,29 @@ if uploaded_file is not None:
         if subset.empty:
             continue
 
+        subset = sorteer_op_type(subset)
+
         st.markdown("---")
         st.subheader(f"📋 {naam}  (code {code})  ·  {email}")
 
         overzicht = bouw_overzicht(subset)
-        st.dataframe(overzicht, use_container_width=True, hide_index=True)
+
+        # ---- Schermweergave: incl. Navision-hyperlink (enkel op scherm, niet in de mail) ----
+        if "NAV" in subset.columns:
+            overzicht_scherm = overzicht.copy()
+            overzicht_scherm["Navision"] = subset["NAV"].apply(bouw_nav_link)
+            st.dataframe(
+                overzicht_scherm,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Navision": st.column_config.LinkColumn(
+                        "Navision", display_text="🔗 Openen"
+                    )
+                },
+            )
+        else:
+            st.dataframe(overzicht, use_container_width=True, hide_index=True)
 
         # ---- HTML-mail opbouwen ----
         tabel_html = bouw_html_tabel(overzicht)
