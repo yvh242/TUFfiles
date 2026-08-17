@@ -16,8 +16,8 @@ st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="
 # Meerdere e-mailadressen mogen gescheiden worden met ';' of ','.
 # ---------------------------------------------------------------------------
 OPDRACHTGEVER_INFO = {
-    "1004438": {"email": "info@cargolinerbelgium.com" : "CARGOLINER BELGIUM BVBA"},
-    "1001764": {"email": "lindseyvangestel@ecuworldwide.com", “customerserviceroadantwerp@ecuworldwide.com": "ECU"},
+    "1004438": {"email": "info@cargolinerbelgium.com", “naam” : "CARGOLINER BELGIUM BVBA"},
+    "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com", “naam” : "ECU"},
     "1001251": {"email": "transport@denycargo.be", "naam": "DENY CARGO"},
     
 }
