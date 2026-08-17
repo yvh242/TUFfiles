@@ -1,5 +1,7 @@
 import re
+from io import BytesIO
 
+import requests
 import streamlit as st
 import pandas as pd
 from email.mime.multipart import MIMEMultipart
@@ -35,15 +37,128 @@ BASIS_KOLOMMEN = [
     "ETA",
 ]
 
-st.title("📦 Verzendingsoverzicht per Opdrachtgever")
-
-st.link_button(
-    "testMail",
-    "https://transuniversegroup.sharepoint.com/:x:/s/test/IQAx-1WjSi8STprH4EdAnxkqAZIcMStzyLAi3jSMtQyQeac?e=aJYYVf",
+SHAREPOINT_MAIL_LINK = (
+    "https://transuniversegroup.sharepoint.com/:x:/s/test/"
+    "IQAx-1WjSi8STprH4EdAnxkqAZIcMStzyLAi3jSMtQyQeac?e=aJYYVf"
 )
 
+
+def haal_sharepoint_excel_op(url: str) -> BytesIO:
+    """Probeert een Excel-bestand rechtstreeks van een SharePoint-deel-link
+    te downloaden. Werkt enkel als de link 'iedereen met de link'-toegang
+    heeft; bij een link die login vereist, komt er een HTML-loginpagina
+    terug in plaats van het bestand, en gooien we een duidelijke fout."""
+    download_url = url + ("&download=1" if "?" in url else "?download=1")
+    resp = requests.get(download_url, timeout=15)
+    resp.raise_for_status()
+
+    content_type = resp.headers.get("Content-Type", "").lower()
+    if "html" in content_type:
+        raise ValueError(
+            "SharePoint gaf een inlogpagina terug in plaats van het bestand. "
+            "Automatisch ophalen werkt enkel als de link is ingesteld op "
+            "'Iedereen met de link'. Gebruik anders de handmatige upload hieronder."
+        )
+    return BytesIO(resp.content)
+
+
+def raad_kolom(kolommen, kandidaten):
+    """Zoekt de eerste kolomnaam die (case-insensitief) overeenkomt met een
+    van de kandidaat-namen, voor het vooraf invullen van de kolom-mapping."""
+    kolommen_lower = {k.lower(): k for k in kolommen}
+    for kandidaat in kandidaten:
+        if kandidaat.lower() in kolommen_lower:
+            return kolommen_lower[kandidaat.lower()]
+    return kolommen[0] if len(kolommen) else None
+
+
+def normaliseer_opdrachtgever(x):
+    """Zet Opdrachtgever om naar een schone string, ook als het een
+    numerieke waarde is (voorkomt bv. '123.0' i.p.v. '123')."""
+    if pd.isna(x):
+        return x
+    if isinstance(x, float) and x.is_integer():
+        return str(int(x))
+    return str(x).strip()
+
+
+st.title("📦 Verzendingsoverzicht per Opdrachtgever")
+
+st.link_button("testMail", SHAREPOINT_MAIL_LINK)
+
+with st.expander("🔄 Mailadressen vernieuwen (enkel voor deze sessie)"):
+    st.caption(
+        "Haalt Code / Klantnaam / E-mail op uit een Excel-bestand en past dit "
+        "tijdelijk toe, bovenop de hardcoded lijst in de code (die blijft ongewijzigd). "
+        "Na een herstart van de app moet dit opnieuw ingeladen worden."
+    )
+
+    if "opdrachtgever_overrides" not in st.session_state:
+        st.session_state["opdrachtgever_overrides"] = {}
+
+    df_mail = None
+    kol1, kol2 = st.columns(2)
+    with kol1:
+        if st.button("📡 Automatisch ophalen vanaf SharePoint"):
+            try:
+                bestand = haal_sharepoint_excel_op(SHAREPOINT_MAIL_LINK)
+                df_mail = pd.read_excel(bestand)
+                st.success(f"{len(df_mail)} rijen opgehaald van SharePoint.")
+            except Exception as e:
+                st.error(f"Automatisch ophalen is mislukt: {e}")
+    with kol2:
+        mail_upload = st.file_uploader(
+            "...of upload het bestand hier manueel", type=["xlsx", "xls"], key="mail_upload"
+        )
+        if mail_upload is not None:
+            try:
+                df_mail = pd.read_excel(mail_upload)
+                st.success(f"{len(df_mail)} rijen ingelezen uit geüpload bestand.")
+            except Exception as e:
+                st.error(f"Kon het bestand niet inlezen: {e}")
+
+    if df_mail is not None:
+        st.dataframe(df_mail.head(20), use_container_width=True, hide_index=True)
+
+        kolommen = list(df_mail.columns)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            kol_code = st.selectbox(
+                "Kolom = Code", kolommen,
+                index=kolommen.index(raad_kolom(kolommen, ["Code", "Opdrachtgever", "Klantnummer"])),
+            )
+        with c2:
+            kol_naam = st.selectbox(
+                "Kolom = Klantnaam", kolommen,
+                index=kolommen.index(raad_kolom(kolommen, ["Klantnaam", "Naam"])),
+            )
+        with c3:
+            kol_email = st.selectbox(
+                "Kolom = E-mail", kolommen,
+                index=kolommen.index(raad_kolom(kolommen, ["Email", "E-mail", "Mailadres", "Mail"])),
+            )
+
+        if st.button("✅ Toepassen op deze sessie"):
+            nieuwe_overrides = {}
+            for _, rij in df_mail.iterrows():
+                code = normaliseer_opdrachtgever(rij[kol_code])
+                if not code or pd.isna(rij[kol_code]):
+                    continue
+                nieuwe_overrides[code] = {
+                    "naam": str(rij[kol_naam]).strip(),
+                    "email": str(rij[kol_email]).strip(),
+                }
+            st.session_state["opdrachtgever_overrides"] = nieuwe_overrides
+            st.success(f"{len(nieuwe_overrides)} opdrachtgevers toegepast voor deze sessie.")
+            st.rerun()
+
+EFFECTIEVE_OPDRACHTGEVER_INFO = {
+    **OPDRACHTGEVER_INFO,
+    **st.session_state.get("opdrachtgever_overrides", {}),
+}
+
 # ---------------------------------------------------------------------------
-# Tabel met hardcoded opdrachtgevers: hier kan je per opdrachtgever aan-
+# Tabel met opdrachtgevers: hier kan je per opdrachtgever aan-
 # of uitvinken of er een overzicht/mail voor gemaakt moet worden.
 # ---------------------------------------------------------------------------
 st.subheader("Opdrachtgevers")
@@ -56,7 +171,7 @@ df_opdrachtgevers = pd.DataFrame(
             "E-mail": info["email"],
             "Overzicht maken": True,
         }
-        for code, info in OPDRACHTGEVER_INFO.items()
+        for code, info in EFFECTIEVE_OPDRACHTGEVER_INFO.items()
     ]
 )
 
@@ -74,16 +189,6 @@ opdrachtgevers_selectie = st.data_editor(
 )
 
 uploaded_file = st.file_uploader("Upload het Excel-bestand", type=["xlsx", "xls"])
-
-
-def normaliseer_opdrachtgever(x):
-    """Zet Opdrachtgever om naar een schone string, ook als het een
-    numerieke waarde is (voorkomt bv. '123.0' i.p.v. '123')."""
-    if pd.isna(x):
-        return x
-    if isinstance(x, float) and x.is_integer():
-        return str(int(x))
-    return str(x).strip()
 
 
 def normaliseer_emails(email_veld: str) -> str:
