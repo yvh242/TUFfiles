@@ -20,6 +20,7 @@ st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="
 # ---------------------------------------------------------------------------
 OPDRACHTGEVER_INFO = {
     "1004438": {"email": "info@cargolinerbelgium.com", "naam": "CARGOLINER BELGIUM BVBA"},
+    "1015913": {"email": "andy@sanytrans.be;dirk@sanytrans.be", "naam": "SANYTRANS NV"},
     "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com","naam": "ECU"},
     "1001251": {"email": "transport@denycargo.be", "naam": "DENY CARGO"},
 }
