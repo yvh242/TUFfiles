@@ -23,6 +23,7 @@ OPDRACHTGEVER_INFO = {
     "1015913": {"email": "andy@sanytrans.be;dirk@sanytrans.be", "naam": "SANYTRANS NV"},
     "1008837": {"email": "transport@dcts.be", "naam": "DCTS"},
     "1001251": {"email": "transport@denycargo.be", "naam": "DENY CARGO"},
+    "1000923": {"email": "logistiek@certis.be", "naam": "CERTIS BENELUX"},
     "1007617": {"email": "trucking.ssc@sscconsolidation.com", "naam": "SSC CONSOLIDATION NV"},
     "1016279": {"email": "logistics.aalst@transuniverse.be;yves.vanholsbeke@transuniverse.be", "naam": "HOBART TUF AALST"},
     "1014882": {"email": "logistics.aalst@transuniverse.be;yves.vanholsbeke@transuniverse.be", "naam": "ZUSTO TUF AALST"},
