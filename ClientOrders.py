@@ -21,12 +21,16 @@ st.set_page_config(page_title="Verzendingsoverzicht per Opdrachtgever", layout="
 OPDRACHTGEVER_INFO = {
     "1004438": {"email": "info@cargolinerbelgium.com", "naam": "CARGOLINER BELGIUM BVBA"},
     "1015913": {"email": "andy@sanytrans.be;dirk@sanytrans.be", "naam": "SANYTRANS NV"},
-    "1007617": {"email": "trucking.ssc@sscconsolidation.com", "naam": "SSC CONSOLIDATION NV"},
-    "1016279": {"email": "logistics.aalst@transuniverse.be", "naam": "HOBART TUF AALST"},
-    "1016018": {"email": "yves.vanholsbeke@transuniverse.be", "naam": "SPECIALTY WILRIJK"},
-    "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com","naam": "ECU"},
+    "1008837": {"email": "transport@dcts.be", "naam": "DCTS"},
     "1001251": {"email": "transport@denycargo.be", "naam": "DENY CARGO"},
-
+    "1007617": {"email": "trucking.ssc@sscconsolidation.com", "naam": "SSC CONSOLIDATION NV"},
+    "1016279": {"email": "logistics.aalst@transuniverse.be;yves.vanholsbeke@transuniverse.be", "naam": "HOBART TUF AALST"},
+    "1014882": {"email": "logistics.aalst@transuniverse.be;yves.vanholsbeke@transuniverse.be", "naam": "ZUSTO TUF AALST"},
+    "1016018": {"email": "yves.vanholsbeke@transuniverse.be", "naam": "SPECIALTY WILRIJK"},
+    "1007640": {"email": "yves.vanholsbeke@transuniverse.be", "naam": "DUPONT GENK"},
+    "1010362": {"email": "yves.vanholsbeke@transuniverse.be", "naam": "N&B GENK"},
+    "1001764": {"email": "lindseyvangestel@ecuworldwide.com;customerserviceroadantwerp@ecuworldwide.com","naam": "ECU"},
+    
 }
 
 # Basiskolommen die altijd in het overzicht moeten staan en verplicht
